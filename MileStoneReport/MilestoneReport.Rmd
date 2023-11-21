@@ -1,0 +1,492 @@
+---
+title: "Text Mining: Preliminary Analysis of Blogs, News and Twitter Based Text Datasets"
+author: "Anil K. Khadka"
+date: "2023-11-20"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Synopsis
+
+
+The goal of the project is to develop the predicting algorithm and Shiny App for natural language processing (text mining and processing). We used the provided Swiftkey dataset and prepared the progress report based on initial findings. The text file containing the texts from blogs, news and twitter in English version are briefly examined. The works covered by this report can be summarized in the following points:
+
+- The data has been filtered by removing the characters and words that do not contribute much and are supposed to be stopwords in English.
+- The total words in the combined datasets (blogs, news and twitter) is more than 100 million. Each data source i.e. blog, news and twitter contains variety of unique words that appears at different frequency.
+- The most frequently used 100 words have been shown in word clouds for each data source.
+- The outline for the development of word predicting algorithm and Shiny App has been presented.
+
+The R-markdown file and codes made for the data analysis is placed [GitHub](https://github.com/akhadka525/Data-Science-Capstone). Please refer the [GitHub](https://github.com/akhadka525/Data-Science-Capstone) section for R-codes used for data analysis and visualization.
+
+
+## 2. The Data
+
+The data used in the study is sourced from [Data Science Capstone Dataset](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip) as a part of Data Science Specialization Course in Coursera. The dataset consists of text file from blogs, news and twitter. These text data are in different languages such as German, English, Russian and Finnish. For this project we will consider only the English version.
+
+### 2.1 Summary of Data
+
+The following text files are used for the study.
+
+
+| Name                | Name in Report| Description                                      |
+|---------------------|---------------|------------------------------------------------  |
+| en_US.blogs.txt     | blog          | A text file of blog-related text in US English.  |
+| en_US.news.txt      | news          | A text file of news-related text in US English.  |
+| en_US.twitter.txt   | twitter       | A text file of tweets from Twitter in English.   |
+
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE}
+
+### Download and install libraries
+
+packages <- c("tidyverse", "dplyr", "stringi", "knitr", "tm", "quanteda", "wordcloud")
+installed_packages <- packages %in% rownames(installed.packages())
+if (any(installed_packages == FALSE)) {
+        install.packages(packages[!installed_packages])
+}
+invisible(lapply(packages, library, character.only = TRUE))
+
+```
+
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,results='hide'}
+
+## Download and load the data if not downloaded and loaded 
+
+dir_path <- getwd() 
+data_url <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+zip_data_file <- "Coursera-SwiftKey.zip"
+unzip_dir <- "data"
+
+
+# Check if the file already exists in the current directory then download data
+if (!file.exists(zip_data_file)) {
+        download.file(data_url, zip_data_file) # If the file does not exist, download it
+        print("File downloaded successfully.")
+} else {
+        print("File already exists.")
+}
+
+# Check if the unzipped data folder already exists
+
+if (!dir.exists(unzip_dir)){
+        unzip(zip_data_file, exdir = unzip_dir) # If the folder does not exist, unzip the file
+        print("Data unzipped successfully.")
+} else {
+        print("Data folder already exists.")
+}
+
+```
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,cache=TRUE}
+
+## Load and read dat
+en_US.blogs.txt <- readLines(paste("data/final/en_US/en_US.blogs.txt",sep=""), 
+                             encoding = 'UTF-8', skipNul = TRUE)
+en_US.news.txt <- readLines(paste("data/final/en_US/en_US.news.txt",sep=""), 
+                            encoding = 'UTF-8', skipNul = TRUE)
+en_US.twitter.txt <- readLines(paste("data/final/en_US/en_US.twitter.txt",sep=""), 
+                               encoding = 'UTF-8', skipNul = TRUE)
+
+```
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,cache=TRUE}
+
+## Explore Data
+blog_size <- sapply(list(en_US.blogs.txt), 
+                    function(x){format(object.size(x),"MB")})
+blog_rows <- sapply(list(en_US.blogs.txt), 
+                    function(x){length(x)})
+blog_char <- sapply(list(en_US.blogs.txt), 
+                    function(x){sum(nchar(x))})
+blog_words <- sum(stri_count_words(en_US.blogs.txt))
+
+news_size <- sapply(list(en_US.news.txt), 
+                    function(x){format(object.size(x),"MB")})
+news_rows <- sapply(list(en_US.news.txt), 
+                    function(x){length(x)})
+news_char <- sapply(list(en_US.news.txt), 
+                    function(x){sum(nchar(x))})
+news_words <- sum(stri_count_words(en_US.news.txt))
+
+twitter_size <- sapply(list(en_US.twitter.txt), 
+                    function(x){format(object.size(x),"MB")})
+twitter_rows <- sapply(list(en_US.twitter.txt), 
+                    function(x){length(x)})
+twitter_char <- sapply(list(en_US.twitter.txt), 
+                    function(x){sum(nchar(x))})
+twitter_words <- sum(stri_count_words(en_US.twitter.txt))
+
+```
+
+
+
+Some of the text samples from the each text file includes:
+
+a) Sample text from blogs:
+`r en_US.blogs.txt[1:2]`
+
+
+b) Sample text from news:
+`r en_US.news.txt[1:2]`
+
+
+c) Sample text from twitter:
+`r en_US.twitter.txt[1:2]`
+
+
+
+The text files contain large number of data. The table below illustrates the file size, total number of lines, total character and total words in each text file. Each file contains more than three million words.
+
+
+| Data Source | File Size (mb)   | Total rows      | Total Characters| Total Words      |
+|:-----------:|:----------------:|:---------------:|:---------------:|:----------------:|
+| blog        | `r blog_size`    | `r blog_rows`   | `r blog_char`   | `r blog_words`   |
+| news        | `r news_size`    | `r news_rows`   | `r news_char`   | `r news_words`   |
+| twitter     | `r twitter_size` | `r twitter_rows`| `r twitter_char`| `r twitter_words`|
+
+
+
+### 2.2 Data cleaning and Preprossing
+
+The preprocessing and cleaning of the data is important for word prediction algorithm development. However the task is challenging too because of the large size of the text file and the text contains characters including numbers, punctuations, symbols, repeated alphabets in words. So, we preprocess and cleaned the data by;
+
+- converting all words to lowercase
+- removing all types of punctuations except apostrophe
+- removing numbers
+- removing web urls
+- removing repeated alphabets in words
+- removing multiple spaces
+- removing common english words
+- removing single alphabets
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE,cache=TRUE}
+
+cleanData <- function(x) {
+  text <- Corpus(VectorSource(x))
+  removeURL <- function(x) gsub("http[[:alnum:]]*", "", x)
+  removeSign <- function(x) gsub("[[:punct:]]", "", x)
+  removeNum <- function(x) gsub("[[:digit:]]", "", x)
+  removeapo <- function(x) gsub("'", "", x)
+  removeNonASCII <- function(x) iconv(x, "latin1", "ASCII", sub = "")
+  removerepeat <- function(x) gsub("([[:alpha:]])\\1{2,}", "\\1\\1", x)
+  toLowerCase <- function(x) sapply(x, tolower)
+  removeSpace <- function(x) gsub("\\s+", " ", x)
+  updatedStopwords <- c(stopwords('en'), "im")
+  
+  text <- tm_map(text, content_transformer(tolower)) %>%
+    tm_map(content_transformer(removeapo)) %>%
+    tm_map(content_transformer(removeNum)) %>%
+    tm_map(content_transformer(removeURL)) %>%
+    tm_map(content_transformer(removeSign)) %>%
+    tm_map(content_transformer(removeNonASCII)) %>%
+    tm_map(content_transformer(toLowerCase)) %>%
+    tm_map(content_transformer(removerepeat)) %>%
+    tm_map(content_transformer(removeSpace)) %>%
+    tm_map(removeWords, stopwords("english")) %>%
+    tm_map(removeWords, updatedStopwords)
+  
+  return(text)
+}
+
+blog <- cleanData(readLines("data/final/en_US/en_US.blogs.txt", warn = FALSE, encoding = "UTF-8"))
+news <- cleanData(readLines("data/final/en_US/en_US.news.txt", warn = FALSE, encoding = "UTF-8"))
+twitter <- cleanData(readLines("data/final/en_US/en_US.twitter.txt", warn = FALSE, encoding = "UTF-8"))
+blog <- unlist(blog)
+news <- unlist(news)
+twitter <- unlist(twitter)
+
+```
+
+
+### 2.3 Sample Data
+
+Since the data size is very large, for some initial data analysis purpose we divide the dataset in the ratio of 70% : 30%. Here we will examine the data features for the 70% of the data with remaining 30% being left for the predictive model testing.
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,cache=TRUE}
+
+set.seed(1250)
+sample_blog <- sample(blog, floor(0.70 * length(blog)))
+sample_news <- sample(news, floor(0.70 * length(news)))
+sample_twitter <- sample(twitter, floor(0.70 * length(twitter)))
+
+```
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,cache=TRUE}
+
+## Explore Sample Data
+sample_blog_rows <- sapply(list(sample_blog), 
+                    function(x){length(x)})
+sample_blog_char <- sapply(list(sample_blog), 
+                    function(x){sum(nchar(x))})
+sample_blog_words <- sum(stri_count_words(sample_blog))
+sample_blog_unique_words <- sum(unique(stri_count_words(sample_blog)))
+
+
+sample_news_rows <- sapply(list(sample_news), 
+                    function(x){length(x)})
+sample_news_char <- sapply(list(sample_news), 
+                    function(x){sum(nchar(x))})
+sample_news_words <- sum(stri_count_words(sample_news))
+sample_news_unique_words <- sum(unique(stri_count_words(sample_news)))
+
+
+sample_twitter_rows <- sapply(list(sample_twitter), 
+                    function(x){length(x)})
+sample_twitter_char <- sapply(list(sample_twitter), 
+                    function(x){sum(nchar(x))})
+sample_twitter_words <- sum(stri_count_words(sample_twitter))
+sample_twitter_unique_words <- sum(unique(stri_count_words(sample_twitter)))
+
+```
+
+The table below summarizes the total number of words and number of unique words present in the sample data for each text files.
+
+
+| Data Source | Total rows             | Total Characters       | Total Words             | Total Unique Words             |
+|:-----------:|:----------------------:|:----------------------:|:-----------------------:|:------------------------------:|
+| blog        | `r sample_blog_rows`   | `r sample_blog_char`   | `r sample_blog_words`   | `r sample_blog_unique_words`   |
+| news        | `r sample_news_rows`   | `r sample_news_char`   | `r sample_news_words`   | `r sample_news_unique_words`   |
+| twitter     | `r sample_twitter_rows`| `r sample_twitter_char`| `r sample_twitter_words`| `r sample_twitter_unique_words`|
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,cache=TRUE}
+
+generate_ngrams <- function(file, n) {
+  corp <- corpus(file, docnames = paste0("doc_", seq_along(file)))
+  tokens <- tokens(corp, what = "word")
+  ngrams <- tokens_ngrams(tokens, n = n)
+  return(ngrams)
+}
+
+```
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,cache=TRUE}
+
+blog_1_grams <- generate_ngrams(sample_blog, 1)
+all_blog_1_grams <- unlist(blog_1_grams)
+news_1_grams <- generate_ngrams(sample_news, 1)
+all_news_1_grams <- unlist(news_1_grams)
+twitter_1_grams <- generate_ngrams(sample_twitter, 1)
+all_twitter_1_grams <- unlist(twitter_1_grams)
+
+
+blog_2_grams <- generate_ngrams(sample_blog, 2)
+all_blog_2_grams <- unlist(blog_2_grams)
+news_2_grams <- generate_ngrams(sample_news, 2)
+all_news_2_grams <- unlist(news_2_grams)
+twitter_2_grams <- generate_ngrams(sample_twitter, 2)
+all_twitter_2_grams <- unlist(twitter_2_grams)
+
+
+blog_3_grams <- generate_ngrams(sample_blog, 3)
+all_blog_3_grams <- unlist(blog_3_grams)
+news_3_grams <- generate_ngrams(sample_news, 3)
+all_news_3_grams <- unlist(news_3_grams)
+twitter_3_grams <- generate_ngrams(sample_twitter, 3)
+all_twitter_3_grams <- unlist(twitter_3_grams)
+
+```
+
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,cache=TRUE}
+
+create_word_freq_df <- function(ngrams_vector) {
+  word_freq_df <- data.frame(
+    word = names(table(ngrams_vector)),
+    frequency = as.vector(table(ngrams_vector))
+  )
+  word_freq_df$word <- gsub("_", " ", word_freq_df$word)
+  word_freq_df <- word_freq_df[order(word_freq_df$frequency, decreasing = TRUE), ]
+  return(word_freq_df)
+}
+
+```
+
+
+
+```{r, echo=FALSE,message=FALSE,warning=FALSE,cache=TRUE}
+
+word_freq_df_blog_1_gram <- create_word_freq_df(all_blog_1_grams)
+word_freq_df_news_1_gram <- create_word_freq_df(all_news_1_grams)
+word_freq_df_twitter_1_gram <- create_word_freq_df(all_twitter_1_grams)
+
+word_freq_df_blog_2_gram <- create_word_freq_df(all_blog_2_grams)
+word_freq_df_news_2_gram <- create_word_freq_df(all_news_2_grams)
+word_freq_df_twitter_2_gram <- create_word_freq_df(all_twitter_2_grams)
+
+
+word_freq_df_blog_3_gram <- create_word_freq_df(all_blog_3_grams)
+word_freq_df_news_3_gram <- create_word_freq_df(all_news_3_grams)
+word_freq_df_twitter_3_gram <- create_word_freq_df(all_twitter_3_grams)
+
+
+```
+
+## 3. Preliminary Findings
+
+The sample data has been used to understand the important features of the data. We developed the n-gram model from the corpus and then identify the most frequent words in n-gram, such as 1-gram, 2-gram and 3-gram. The histogram below shows the most frequent 1-gram words for each sample files.
+
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE, fig.align='center'}
+par(mfrow = c(1, 3))
+options(scipen = 999)
+par(mgp = c(3, 1, 0))
+
+barplot(word_freq_df_blog_1_gram$frequency[1:10], names.arg = word_freq_df_blog_1_gram$word[1:10],
+        xlab = "Frequency (1-gram blog)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_blog_1_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+barplot(word_freq_df_news_1_gram$frequency[1:10], names.arg = word_freq_df_news_1_gram$word[1:10],
+        main = "Top 10 High-Frequency\nWords (1-gram)",
+        xlab = "Frequency (1-gram news)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_news_1_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+barplot(word_freq_df_twitter_1_gram$frequency[1:10], names.arg = word_freq_df_twitter_1_gram$word[1:10],
+        xlab = "Frequency (1-gram twitter)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_twitter_1_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+options(scipen = 0)
+par(mfrow = c(1, 1))
+
+```
+
+
+The following histogram shows the most frequent 2-gram words for each sample text files.
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE, fig.align='center'}
+par(mfrow = c(1, 3), mar = c(6.5, 6.5, 2, 1))
+options(scipen = 999)
+par(mgp = c(5.5, 1, 0))
+
+barplot(word_freq_df_blog_2_gram$frequency[1:10], names.arg = word_freq_df_blog_2_gram$word[1:10],
+        xlab = "Frequency (2-gram blog)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_blog_2_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+barplot(word_freq_df_news_2_gram$frequency[1:10], names.arg = word_freq_df_news_2_gram$word[1:10],
+        main = "Top 10 High-Frequency\nWords (2-gram)",
+        xlab = "Frequency (2-gram news)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_news_2_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+barplot(word_freq_df_twitter_2_gram$frequency[1:10], names.arg = word_freq_df_twitter_2_gram$word[1:10],
+        xlab = "Frequency (2-gram twitter)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_twitter_2_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+options(scipen = 0)
+par(mfrow = c(1, 1))
+
+```
+
+
+The following histogram shows the most frequent 3-gram words for each sample text files.
+
+```{r, echo=FALSE,warning=FALSE,message=FALSE, fig.align='center'}
+par(mfrow = c(1, 3), mar = c(8.5, 8.5, 2, 1))
+options(scipen = 999)
+par(mgp = c(3, 1, 0))
+
+barplot(word_freq_df_blog_3_gram$frequency[1:10], names.arg = word_freq_df_blog_3_gram$word[1:10],
+        xlab = "Frequency (3-gram blog)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_blog_3_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+barplot(word_freq_df_news_3_gram$frequency[1:10], names.arg = word_freq_df_news_3_gram$word[1:10],
+        main = "Top 10 High-Frequency\nWords (3-gram)",
+        xlab = "Frequency (3-gram news)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_news_3_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+barplot(word_freq_df_twitter_3_gram$frequency[1:10], names.arg = word_freq_df_twitter_3_gram$word[1:10],
+        xlab = "Frequency (3-gram twitter)", ylab = "", col = "lightblue", horiz = TRUE,
+        las = 1,, xlim = c(0, max(word_freq_df_twitter_3_gram$frequency[1:10]) * 1.2),
+        cex.names = 1)
+
+options(scipen = 0)
+par(mfrow = c(1, 1))
+
+```
+
+
+We also create the top 100 frequently used words for blog, news and twitter sample text data files which are shown in the following word clouds respecively.
+
+```{r, echo=FALSE,message=FALSE, warning=FALSE, fig.align='center', fig.width=10, fig.height=6}
+
+par(mfrow = c(1, 3))
+
+wordcloud(
+  words = word_freq_df_blog_1_gram$word[1:100],
+  freq = word_freq_df_blog_1_gram$frequency[1:100],
+  colors = brewer.pal(7, "Dark2"),
+  min.axis.freq = 10, 
+  scale = c(0.6, 1),  
+  random.order = FALSE,
+  rot.per = 0.4,  
+  main = "Word Cloud for Top 100 High-Frequency Words",
+  max.words = 100  
+)
+
+
+wordcloud(
+  words = word_freq_df_news_1_gram$word[1:100],
+  freq = word_freq_df_news_1_gram$frequency[1:100],
+  colors = brewer.pal(7, "Dark2"),
+  min.axis.freq = 10,  
+  scale = c(0.6, 1),  
+  random.order = FALSE,
+  rot.per = 0.4,  
+  main = "Word Cloud for Top 100 High-Frequency Words",
+  max.words = 100  
+)
+
+
+wordcloud(
+  words = word_freq_df_twitter_1_gram$word[1:100],
+  freq = word_freq_df_twitter_1_gram$frequency[1:100],
+  colors = brewer.pal(7, "Dark2"),
+  min.axis.freq = 10, 
+  scale = c(0.6, 1),  
+  random.order = FALSE,
+  rot.per = 0.4,  
+  main = "Word Cloud for Top 100 High-Frequency Words",
+  max.words = 100  
+)
+
+par(mfrow = c(1, 1))
+
+```
+
+
+## 4. Plan for Predictive Modeling and Shiny App
+
+We examine the text dataset and exploratory analysis of the dataset provides some interesting findings. Next step is to develop the predictive model and Shiny App. We will use the sampled 70% of the data to build the word predictive model and the remaining 30% will be used for the model evaluation. The following are the plans for the predictive model and Shiny App development.
+
+- First the model will be developed, trained and cross validated using the 70% of the data used to prepare this report.
+- Development of initial predictive model based on the 1-, 2-, and 3-gram most frequently used words from sentences.
+- The report shows there are some words such as rt, llc and others. These words will be removed.
+- If necessary word clustering will also be done.
+- The words will be weighted based on frequency and only those words will be used for the model and app development.
+
+
+## References
+
+1. Data Source: 
+<https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip>
+
+2. Feinerer, I., Hornik, K., & Meyer, D. (2008). Text Mining Infrastructure in R. Journal of Statistical Software, 25(5), 1–54. https://doi.org/10.18637/jss.v025.i05 <https://www.jstatsoft.org/article/view/v025i05>
