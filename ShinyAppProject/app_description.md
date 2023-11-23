@@ -18,4 +18,4 @@ Follow the following steps to use the Word Predicting App.
 
 ## Source Code and Availibility
 
-This is an open-source app made using the Shiny Web App tool. The source code for the app is available on GitHub.
+This is an open-source app made using the Shiny Web App tool. The source code for the app is available on [GitHub](https://github.com/akhadka525/Data-Science-Capstone/tree/shinyapp/WordPredictingApp).
